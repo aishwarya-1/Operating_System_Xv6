@@ -13,6 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+extern int mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
 
 void
 tvinit(void)
@@ -77,6 +78,22 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+  
+  case T_PGFLT:
+  {
+  	char *vatomap = kalloc();
+    memset(vatomap, 0, PGSIZE);  
+    int pmem;
+    pmem = PGROUNDDOWN(rcr2());
+    
+	mappages(myproc()->pgdir, (char *)pmem, PGSIZE, (uint)vatomap - KERNBASE, PTE_W|PTE_U);  
+	  	
+	return;
+	break;
+	
+	}
+
+  		
 
   //PAGEBREAK: 13
   default:
