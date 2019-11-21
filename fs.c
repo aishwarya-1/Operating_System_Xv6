@@ -374,6 +374,8 @@ bmap(struct inode *ip, uint bn)
 {
   uint addr, *a;
   struct buf *bp;
+  short entry, offset;
+  
 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
@@ -381,7 +383,7 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
   bn -= NDIRECT;
-
+  
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT]) == 0)
@@ -395,10 +397,38 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
+	bn -= NINDIRECT;
 
-  panic("bmap: out of range");
-}
+	if(bn < NDOUBLE_INDIRECT) {
+	  	if((addr = ip->addrs[NDIRECT + 1]) == 0)
+	 		ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
 
+	  	bp = bread(ip->dev, addr);
+	  	a = (uint*)bp->data;
+
+	  	entry = bn/NDINDIRECT_PER_ENTRY;
+	  	offset = bn%NDINDIRECT_PER_ENTRY;
+
+	  	if((addr = a[entry]) == 0) {
+	  		a[entry] = addr = balloc(ip->dev);
+	  		log_write(bp);
+	  	}
+	  	brelse(bp);
+	 
+	  	bp = bread(ip->dev, addr);
+	  	a = (uint*)bp->data;
+
+	  	if((addr = a[offset]) == 0) {
+	  		a[offset] = addr = balloc(ip->dev);
+	  		log_write(bp);
+	 	}
+
+	  	brelse(bp);
+	  	return addr;
+	  }
+  
+   panic("bmap: out of range");
+ }
 // Truncate inode (discard contents).
 // Only called when the inode has no links
 // to it (no directory entries referring to it)
